@@ -1,0 +1,4 @@
+services:
+#    xrowsylius.example:
+#        class: xrow\syliusBundle\Example
+#        arguments: [@service_id, "plain_value", %parameter%]

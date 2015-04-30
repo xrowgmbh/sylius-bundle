@@ -1,0 +1,9 @@
+{
+    "name": "xrow/sylius-bundle",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "description": "Bundle for using Sylius with eZ",
+    "autoload": {
+        "psr-4": { "xrow\\syliusBundle\\": "" }
+    }
+}
