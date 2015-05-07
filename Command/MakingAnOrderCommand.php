@@ -7,6 +7,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\HttpFoundation\Request;
 use xrow\syliusBundle\Component\SyliusDefaultFunctionsOverride;
 
 class MakingAnOrderCommand extends ContainerAwareCommand
@@ -35,10 +36,11 @@ EOT
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $productId = $input->getOption('product-id');
-        $request = Request::create('', 'GET', array('id' => $productId));
+        $container = $this->getContainer();
+        $syliusOFRef = $container->get('xrow.sylius.override.functions');
         // create a cart
         try {
-            $cartItemArray = SyliusDefaultFunctionsOverride::addProductToCartAction($request);
+            $cartItemArray = $syliusOFRef->addProductToCartAction($productId);
             die(var_dump($cartItemArray));
             $output->writeln(sprintf('A new cart with id <info>%s</info> has been added', $cartItemArray[0]->getId()));
         } catch (ItemResolvingException $exception) {
