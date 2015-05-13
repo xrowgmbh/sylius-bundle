@@ -2,27 +2,43 @@
 
 namespace xrow\syliusBundle\Repository;
 
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
+
+use Sylius\Bundle\CoreBundle\Doctrine\ORM\ProductRepository as SyliusProductRepository;
+
+use xrow\syliusBundle\Entity\Product as SyliusProduct;
+
 use eZ\Publish\API\Repository\Values\Content\Query;
 use eZ\Publish\API\Repository\Values\Content\Query\Criterion;
 
-class ProductRepository
+class ProductRepository extends SyliusProductRepository
 {
     private $container;
+    private $eZAPIRepository;
 
-    public function __construct(ContainerInterface $container)
+    public function setContainer(ContainerInterface $container)
+    {
+        $this->container = $container;
+        $this->eZAPIRepository = $this->container->get('ezpublish.api.repository'); // eZ\Publish\Core\SignalSlot\ContentService
+    }
+
+    public function getContainer()
     {
         $this->container = $container;
     }
 
-    /**
-     * @param mixed $id
-     *
-     * @return null|object
-     */
-    public function find($node_id)
+    public function find($contentobject_id)
     {
-        $repository = $this->container->get('ezpublish.api.repository');
-        $source_node = $repository->getLocationService()->loadLocation($node_id);
+        if($this->container) {
+            $contentObject = $this->eZAPIRepository->getContentService()->loadContent($contentobject_id); // eZ\Publish\Core\Repository\Values\Content\Content
+            $product = $this->createNew();
+            $product->setEZObject($contentObject);
+            return $product;
+        }
+        else {
+            throw new InvalidArgumentException('ContainerInterface container not set.');
+        }
     }
 
     /**
@@ -31,7 +47,7 @@ class ProductRepository
     public function findAll()
     {
         // erweitern um die KlassenID, damit nur Produke ausgegeben werden
-        new Criterion\ContentTypeIdentifier(array('product'));
+        die('Bin hier gelandet und brauche eine sinnvolle Wiedergabe in ' . get_class($this) . ', Funktion ' . __METHOD__);
         return $this
             ->getCollectionQueryBuilder()
             ->getQuery()
@@ -46,14 +62,12 @@ class ProductRepository
      */
     public function findOneBy(array $criteria)
     {
-        $queryBuilder = $this->getQueryBuilder();
-
-        $this->applyCriteria($queryBuilder, $criteria);
-
-        return $queryBuilder
-            ->getQuery()
-            ->getOneOrNullResult()
-        ;
+        die('Bin hier gelandet und brauche eine sinnvolle Wiedergabe in ' . get_class($this) . ', Funktion ' . __METHOD__);
     }
 
+    public function save(Customer $customer)
+    {
+        $this->_em->persist($customer);
+        $this->_em->flush();
+    }
 }

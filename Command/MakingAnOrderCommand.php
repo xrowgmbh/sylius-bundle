@@ -18,14 +18,14 @@ class MakingAnOrderCommand extends ContainerAwareCommand
             ->setName('xrow:sylius:add-product')
             ->setDescription('Making an order')
             ->addOption(
-                'product-id',
+                'contentobject_id',
                 null,
-                InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY,
-                'eZ contentobject_id as product id'
+                InputOption::VALUE_REQUIRED,
+                'eZ contentobject_id'
             )
             ->setHelp(<<<EOT
 The <info>%command.name%</info>command makes an order.
-<info>php %command.full_name% [--product-id=...] name</info>
+<info>php %command.full_name% [--contentobject_id=...] name</info>
 EOT
             );
     }
@@ -35,13 +35,13 @@ EOT
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $productId = $input->getOption('product-id');
+        $contentobject_id = $input->getOption('contentobject_id');
         $container = $this->getContainer();
         $syliusOFRef = $container->get('xrow.sylius.override.functions');
         // create a cart
         try {
-            $cartItemArray = $syliusOFRef->addProductToCartAction($productId);
-            die(var_dump($cartItemArray));
+            $cart = $syliusOFRef->addProductToCartAction($contentobject_id);
+            die(var_dump($cart));
             $output->writeln(sprintf('A new cart with id <info>%s</info> has been added', $cartItemArray[0]->getId()));
         } catch (ItemResolvingException $exception) {
             $output->writeln(sprintf('ERROR! Message <info>%s</info> has been added', $exception->getMessage()));

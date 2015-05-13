@@ -2,7 +2,12 @@
 
 namespace xrow\syliusBundle\Repository;
 
-use Doctrine\ORM\EntityRepository;
+use xrow\syliusBundle\Entity\User as SyliusUser;
+
+use Sylius\Bundle\CoreBundle\Doctrine\ORM\UserRepository as SyliusProductRepository;
+
+use eZ\Publish\API\Repository\Values\Content\Query;
+use eZ\Publish\API\Repository\Values\Content\Query\Criterion;
 
 /**
 * UserRepository
@@ -12,8 +17,30 @@ use Doctrine\ORM\EntityRepository;
 */
 class UserRepository extends EntityRepository
 {
-    public function getClassName()
+    private $container;
+    private $eZAPIRepository;
+
+    public function setContainer(ContainerInterface $container)
     {
-        return $this->getEntityName();
+        $this->container = $container;
+        $this->eZAPIRepository = $this->container->get('ezpublish.api.repository'); // eZ\Publish\Core\SignalSlot\ContentService
+    }
+
+    public function getContainer()
+    {
+        $this->container = $container;
+    }
+
+    public function find($contentobject_id)
+    {
+        if($this->container) {
+            $contentObject = $this->eZAPIRepository->getContentService()->loadContent($contentobject_id); // eZ\Publish\Core\Repository\Values\Content\Content
+            $user = $this->createNew();
+            $user->setEZObject($contentObject);
+            return $user;
+        }
+        else {
+            throw new InvalidArgumentException('ContainerInterface container not set.');
+        }
     }
 }
