@@ -27,8 +27,17 @@ class ProductVariantRepository extends SyliusProductVariantRepository
         $this->container = $container;
     }
 
-    public function getFormQueryBuilder()
+    public function find($contentobject_id)
     {
-        return true();
+        $syliusProductVariant = $this->getQueryBuilder()
+                                        ->andWhere($this->getAlias().'.product_id = '.intval($contentobject_id))
+                                        ->getQuery()
+                                        ->getOneOrNullResult();
+        return $syliusProductVariant;
+    }
+
+    protected function getAlias()
+    {
+        return 'variant';
     }
 }

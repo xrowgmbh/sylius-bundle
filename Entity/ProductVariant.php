@@ -17,27 +17,9 @@ class ProductVariant extends SyliusProductVariant
     /**
      * {@inheritdoc}
      */
-    public function getId()
+    public function setProductId($id)
     {
-        return $this->getProduct()->getEZObject()->getFieldValue('contentobject_id')->__toString();
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function __toString()
-    {
-        $string = $this->getProduct()->getEZObject()->getFieldValue('name')->__toString(); // eZ\Publish\Core\FieldType\TextLine\Value
-
-        return $string;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getPrice()
-    {
-        return (int)$this->getProduct()->getEZObject()->getFieldValue('price_de')->__toString() * 100;
+        return $this->product_id = $id;
     }
 
     /**

@@ -15,15 +15,15 @@ use Symfony\Component\EventDispatcher\GenericEvent;
 use Sylius\Component\Cart\Event\CartItemEvent;
 use Sylius\Component\Cart\Resolver\ItemResolvingException;
 use Sylius\Component\Cart\SyliusCartEvents;
-use Sylius\Component\Resource\Event\FlashEvent;
+
+use Doctrine\Common\Persistence\ObjectManager;
+use Faker\Provider\DateTime as FakeDateTime;
 
 use xrow\syliusBundle\Entity\ProductVariant as SyliusProductVariant;
 
-use Faker\Provider\DateTime as FakeDateTime;
-
 class SyliusDefaultFunctionsOverride
 {
-    private $container;
+    protected $container;
     public $sylius = array();
 
     public function __construct(ContainerInterface $container)
@@ -36,47 +36,49 @@ class SyliusDefaultFunctionsOverride
         $this->sylius['PriceCalculator'] = $this->container->get('sylius.price_calculator');
     }
 
-    public function addProductToCartAction($contentobject_id)
+    /**
+     * {@inheritdoc}
+     */
+    public function load(ObjectManager $manager)
+    {}
+    
+    /**
+     * {@inheritdoc}
+     */
+    public function getOrder()
+    {}
+
+    public function addProductToCartAction($contentId)
     {
         $eventDispatcher = $this->container->get('event_dispatcher');
-        $entityManager = $this->container->get('doctrine.orm.entity_manager');
         $cart = $this->sylius['CartProvider']->getCart();
         $cartItem = $this->sylius['CartItemController']->createNew(); // Sylius\Component\Core\Model\OrderItem
         $this->sylius['ProductRepository']->setContainer($this->container);
         $this->sylius['ProductVariantRepository']->setContainer($this->container);
         try {
-            if (!$syliusProduct = $this->sylius['ProductRepository']->find($contentobject_id)) {
-                throw new ItemResolvingException('Requested product was not found.');
+            if (!$syliusProduct = $this->sylius['ProductRepository']->find($contentId)) {
+                // create new sylius product
+                $syliusProduct = $this->createNewProductAndVariant($contentId);
             }
-            #$syliusProduct->setId($contentobject_id);
-            // sylius needs a product variant to create a cart
-            $variant = $this->sylius['ProductVariantRepository']->createNew();
-            $variant->setSku(intval(rand(1,9) . rand(0,9) . rand(0,9) . rand(0,9) . rand(0,9)));
-            $variant->setAvailableOn(FakeDateTime::dateTimeBetween('-1 year'));
-            $variant->setOnHand(100);
-            $variant->setPrice($syliusProduct->getPrice());
-            // set new master variant xrow\syliusBundle\Entity\ProductVariant
-            $syliusProduct->setMasterVariant($variant);
-            // all entities have to be persisted
-            $entityManager->persist($variant);
-            $entityManager->persist($syliusProduct);
-            $entityManager->flush();
-            #$variant->setPrice($variant->getPrice());
+            die(var_dump($syliusProduct));
+            $syliusProductVariant = $syliusProduct->getMasterVariant();
             // put product variant to the cart
-            $cartItem->setVariant($variant);
+            $cartItem->setVariant($syliusProductVariant);
+
             $quantity = $cartItem->getQuantity();
             $context = array('quantity' => $quantity);
             if (null !== $user = $cart->getUser()) {
                 $context['groups'] = $user->getGroups()->toArray();
             }
-            //Sylius\Bundle\CartBundle\EventListener\CartListener->saveCart
-            $cartItem->setUnitPrice($this->sylius['PriceCalculator']->calculate($variant, $context));
+
+            $cartItem->setUnitPrice($this->sylius['PriceCalculator']->calculate($syliusProductVariant, $context));
             foreach ($cart->getItems() as $cartItemTmp) {
                 if ($cartItemTmp->equals($cartItem)) {
                     $quantity += $cartItemTmp->getQuantity();
                     break;
                 }
             }
+
             $event = new CartItemEvent($cart, $cartItem);
             $event->isFresh(true);
             // Update models
@@ -86,10 +88,105 @@ class SyliusDefaultFunctionsOverride
 
             return $cart;
         } catch (ItemResolvingException $exception) {
-            // Write flash message
-            #$eventDispatcher->dispatch(SyliusCartEvents::ITEM_ADD_ERROR, new FlashEvent($exception->getMessage()));
             throw new ItemResolvingException($exception->getMessage());
         }
         return null;
+    }
+
+    private function createNewProductAndVariant($contentId)
+    {
+        // sylius.manager.tax_category
+        $entityManager = $this->container->get('doctrine.orm.entity_manager');
+
+        $product = $this->sylius['ProductRepository']->createNew();
+        $product->setId($contentId);
+
+        $taxCategoryRepository = $entityManager->getRepository('\Sylius\Component\Taxation\Model\TaxCategory');
+        $taxCategory = $taxCategoryRepository->find(1);
+        $product->setTaxCategory($taxCategory);
+
+        // get eZ Object
+        $eZObject = $this->getEZObject($contentId, true);
+
+        $name = $eZObject['contentObject']->getFieldValue('name')->__toString();
+
+        $search_array = array('/û/', '/ù/', '/ú/', '/ø/', '/ô/', '/ò/', '/ó/', '/î/', '/ì/', '/í/', '/æ/', '/ê/', '/è/', '/é/', '/å/', '/â/', '/à/', '/á/', '/Û/', '/Ù/', '/Ú/', '/Ø/', '/Ô/', '/Ò/', '/Ó/', '/Î/', '/Ì/', '/Ì/', '/Í/', '/Æ/', '/Ê/', '/È/', '/É/', '/Å/', '/Â/', '/Â/', '/À/', '/Á/','/Ö/', '/Ä/', '/Ü/', "/'/", '/\&/', '/ö/', '/ä/', "/ /", '/ü/', '/ß/', '/\!/', '/\"/', '/\§/', '/\$/', '/\%/', '/\//', '/\(/', '/\)/', '/\=/', '/\?/', '/\@/', '/\#/', '/\*/', '/€/');
+        $replace_array = array('u', 'u', 'u', 'o', 'o', 'o', 'o', 'i', 'i', 'i', 'ae', 'e', 'e', 'e', 'a', 'a', 'a', 'a', 'U', 'U', 'U', 'O', 'O', 'O', 'O', 'I', 'I', 'I', 'I', 'Ae', 'E', 'E', 'E', 'A', 'A', 'A', 'A', 'A', 'Oe', 'Ae', 'Ue', '', '+', 'oe', 'ae', "-", 'ue', 'ss', '', '', '', '', '', '', '', '', '', '', '', '', '', '');
+        $slug = preg_replace($search_array, $replace_array, strtolower($name));
+        $description = $eZObject['parentContentObject']->getFieldValue('description')->__toString();
+        $locale = $this->container->getParameter('sylius.locale');
+        $product->setCurrentLocale($locale);
+        $product->setFallbackLocale($locale);
+        $product->setSlug($slug);
+        $product->setName($name);
+        $product->setDescription($description);
+        #die(var_dump($eZObject['parentContentObject']->getFieldValue('description')));
+
+        $product = $this->addMasterVariant($product, $eZObject['contentObject']);
+
+        // get ArchType 
+        switch($name) {
+            case strpos($name, 'Kontakter') !== false:
+                $archcode = 'kontakterepaper';
+                break;
+            case strpos($name, 'LEAD digital') !== false:
+                $archcode = 'leaddigitalepaper';
+                break;
+            default:
+                $archcode = 'wuvepaper';
+                break;
+        }
+        $archetypeRepository = $this->container->get('sylius.repository.product_archetype');
+        $archetype = $archetypeRepository->findOneBy(array('code' => $archcode));
+        $product->setArchetype($archetype);
+
+        #$this->addAttribute($product, 'Book author', $author);
+        #$this->addAttribute($product, 'Book ISBN', $isbn);
+        #$this->addAttribute($product, 'Book pages', $this->faker->randomNumber(3));
+
+        $entityManager->persist($product);
+        $entityManager->flush();
+        return $product;
+    }
+
+    /**
+     * 
+     * @param unknown $contentId
+     * @param string $getParent
+     * @return multitype:NULL
+     */
+    private function getEZObject($contentId, $getParent = false)
+    {
+        $eZAPIRepository = $this->container->get('ezpublish.api.repository');
+        $contentCervice = $eZAPIRepository->getContentService();
+        $eZObject = array('contentObject' => $contentCervice->loadContent($contentId));
+        if($getParent) {
+            $reverseRelations = $contentCervice->loadReverseRelations($eZObject['contentObject']->versionInfo->contentInfo);
+            $parentContentInfoObject = $reverseRelations[0]->sourceContentInfo;
+            $eZObject['parentContentObject'] = $contentCervice->loadContent($parentContentInfoObject->id);
+        }
+        return $eZObject;
+    }
+
+    /**
+     * Adds master variant to product.
+     *
+     * @param ProductInterface $product
+     * @param string           $sku
+     */
+    protected function addMasterVariant($product, $contentObject)
+    {
+        $variant = $this->sylius['ProductVariantRepository']->createNew();
+        $variant->setProduct($product);
+
+        $price = (int)$contentObject->getFieldValue('price_de')->__toString() * 100;
+        // Sylius Produkt Variant
+        $variant->setSku(intval(rand(1,9) . rand(0,9) . rand(0,9) . rand(0,9) . rand(0,9)));
+        $variant->setAvailableOn(FakeDateTime::dateTimeBetween('-1 year'));
+        $variant->setOnHand(100);
+        $variant->setPrice($price);
+
+        $product->setMasterVariant($variant);
+        return $product;
     }
 }

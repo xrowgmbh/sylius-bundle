@@ -29,43 +29,13 @@ use Doctrine\ORM\Mapping as ORM;
  */
 class Product extends SyliusProduct
 {
-    private $eZObject;
-
-    public function setEZObject($eZObject)
-    {
-        $this->eZObject = $eZObject;
-        return $this;
-    }
-
-    public function getEZObject()
-    {
-        return $this->eZObject;
-    }
-
     /**
      * {@inheritdoc}
      */
-    public function getId()
+    public function setId($id)
     {
-        return $this->eZObject->getFieldValue('contentobject_id')->__toString();
+        return $this->id = $id;
     }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getName()
-    {
-        return $this->eZObject->getFieldValue('name')->__toString();
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getPrice()
-    {
-        return (int)$this->getProduct()->getEZObject()->getFieldValue('price_de')->__toString() * 100;
-    }
-    
 
     /**
      * {@inheritdoc}
@@ -81,13 +51,5 @@ class Product extends SyliusProduct
         }
 
         return $this;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getShortDescription()
-    {
-        return $this->eZObject->getFieldValue('description')->__toString();
     }
 }

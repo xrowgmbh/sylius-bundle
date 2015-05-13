@@ -18,14 +18,14 @@ class MakingAnOrderCommand extends ContainerAwareCommand
             ->setName('xrow:sylius:add-product')
             ->setDescription('Making an order')
             ->addOption(
-                'contentobject_id',
+                'contentId',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'eZ contentobject_id'
+                'eZ contentId'
             )
             ->setHelp(<<<EOT
 The <info>%command.name%</info>command makes an order.
-<info>php %command.full_name% [--contentobject_id=...] name</info>
+<info>php %command.full_name% [--contentId=...] name</info>
 EOT
             );
     }
@@ -35,12 +35,12 @@ EOT
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $contentobject_id = $input->getOption('contentobject_id');
+        $contentId = $input->getOption('contentId');
         $container = $this->getContainer();
         $syliusOFRef = $container->get('xrow.sylius.override.functions');
         // create a cart
         try {
-            $cart = $syliusOFRef->addProductToCartAction($contentobject_id);
+            $cart = $syliusOFRef->addProductToCartAction($contentId);
             die(var_dump($cart));
             $output->writeln(sprintf('A new cart with id <info>%s</info> has been added', $cartItemArray[0]->getId()));
         } catch (ItemResolvingException $exception) {

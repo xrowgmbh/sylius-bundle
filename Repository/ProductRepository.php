@@ -28,46 +28,17 @@ class ProductRepository extends SyliusProductRepository
         $this->container = $container;
     }
 
-    public function find($contentobject_id)
+    public function find($id)
     {
-        if($this->container) {
-            $contentObject = $this->eZAPIRepository->getContentService()->loadContent($contentobject_id); // eZ\Publish\Core\Repository\Values\Content\Content
-            $product = $this->createNew();
-            $product->setEZObject($contentObject);
-            return $product;
-        }
-        else {
-            throw new InvalidArgumentException('ContainerInterface container not set.');
-        }
+        $syliusProduct = $this->getQueryBuilder()
+                                    ->andWhere($this->getAlias().'.id = '.intval($id))
+                                    ->getQuery()
+                                    ->getOneOrNullResult();
+        return $syliusProduct;
     }
 
-    /**
-     * @return array
-     */
-    public function findAll()
+    protected function getAlias()
     {
-        // erweitern um die KlassenID, damit nur Produke ausgegeben werden
-        die('Bin hier gelandet und brauche eine sinnvolle Wiedergabe in ' . get_class($this) . ', Funktion ' . __METHOD__);
-        return $this
-            ->getCollectionQueryBuilder()
-            ->getQuery()
-            ->getResult()
-        ;
-    }
-
-    /**
-     * @param array $criteria
-     *
-     * @return null|object
-     */
-    public function findOneBy(array $criteria)
-    {
-        die('Bin hier gelandet und brauche eine sinnvolle Wiedergabe in ' . get_class($this) . ', Funktion ' . __METHOD__);
-    }
-
-    public function save(Customer $customer)
-    {
-        $this->_em->persist($customer);
-        $this->_em->flush();
+        return 'product';
     }
 }
