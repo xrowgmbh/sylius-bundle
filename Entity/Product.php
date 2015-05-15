@@ -29,10 +29,6 @@ use Doctrine\ORM\Mapping as ORM;
  */
 class Product extends SyliusProduct
 {
-    /**
-     * @ORM\Column(type="integer")
-     * @ORM\content_id
-     */
     protected $content_id;
 
     public function getContentId()
