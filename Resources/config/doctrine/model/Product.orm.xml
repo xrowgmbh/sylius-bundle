@@ -14,11 +14,11 @@
 <doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
                   xmlns:gedmo="http://gediminasm.org/schemas/orm/doctrine-extensions-mapping">
 
-    <mapped-superclass name="Sylius\Component\Product\Model\Product" table="sylius_product">
+    <mapped-superclass name="xrow\syliusBundle\Entity\Product" table="sylius_product">
 
-        <id name="contentId" column="contentId" type="integer">
+        <field name="contentId" column="contentId" type="integer">
             <gedmo:versioned />
-        </id>
+        </field>
 
         <gedmo:loggable />
     </mapped-superclass>
