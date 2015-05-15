@@ -30,11 +30,20 @@ use Doctrine\ORM\Mapping as ORM;
 class Product extends SyliusProduct
 {
     /**
-     * {@inheritdoc}
+     * @ORM\Column(type="integer")
+     * @ORM\content_id
      */
-    public function setId($id)
+    protected $content_id;
+
+    public function getContentId()
     {
-        return $this->id = $id;
+        return $this->content_id;
+    }
+
+    public function setContentId($contentId)
+    {
+        $this->content_id = $contentId;
+        return $this;
     }
 
     /**
