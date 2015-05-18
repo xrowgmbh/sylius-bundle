@@ -12,35 +12,29 @@
 namespace xrow\syliusBundle\Entity;
 
 use Sylius\Component\Core\Model\Product as SyliusProduct;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
-use Sylius\Component\Addressing\Model\ZoneInterface;
-use Sylius\Component\Shipping\Model\ShippingCategoryInterface;
-use Sylius\Component\Taxation\Model\TaxCategoryInterface;
-use Sylius\Component\Taxonomy\Model\TaxonInterface as BaseTaxonInterface;
-use Sylius\Component\Variation\Model\VariantInterface;
 
-use Doctrine\ORM\EntityRepository;
-use Doctrine\ORM\Mapping as ORM;
+#use Doctrine\ORM\EntityRepository;
+#use Doctrine\ORM\Mapping as ORM;
 
-/**
- * @ORM\Table(name="sylius_product")
- * @ORM\Entity(repositoryClass="xrow\syliusBundle\Repository\ProductRepository",readOnly=true)
- */
+#/**
+# * @ORM\Entity(repositoryClass="xrow\syliusBundle\Repository\ProductRepository",readOnly=true)
+# */
 class Product extends SyliusProduct
 {
-    /**
-     * {@inheritdoc}
-     */
-    public function setId($id)
+    protected $content_id;
+
+    public function getContentId()
     {
-        return $this->id = $id;
+        return $this->content_id;
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function setMasterVariant(VariantInterface $masterVariant)
+    public function setContentId($contentId)
+    {
+        $this->content_id = $contentId;
+        return $this;
+    }
+
+    /*public function setMasterVariant(VariantInterface $masterVariant)
     {
         if($masterVariant instanceof ProductVariant) {
             $masterVariant->setMaster(true);
@@ -51,5 +45,5 @@ class Product extends SyliusProduct
         }
 
         return $this;
-    }
+    }*/
 }

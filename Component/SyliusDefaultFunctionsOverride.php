@@ -56,7 +56,7 @@ class SyliusDefaultFunctionsOverride
         $this->sylius['ProductRepository']->setContainer($this->container);
         $this->sylius['ProductVariantRepository']->setContainer($this->container);
         try {
-            if (!$syliusProduct = $this->sylius['ProductRepository']->find($contentId)) {
+            if (!$syliusProduct = $this->sylius['ProductRepository']->findOneBy(array('content_id' => $contentId))) {
                 // create new sylius product
                 $syliusProduct = $this->createNewProductAndVariant($contentId);
             }
@@ -99,7 +99,7 @@ class SyliusDefaultFunctionsOverride
         $entityManager = $this->container->get('doctrine.orm.entity_manager');
 
         $product = $this->sylius['ProductRepository']->createNew();
-        $product->setId($contentId);
+        $product->setContentId($contentId);
 
         $taxCategoryRepository = $entityManager->getRepository('\Sylius\Component\Taxation\Model\TaxCategory');
         $taxCategory = $taxCategoryRepository->find(1);
@@ -109,18 +109,17 @@ class SyliusDefaultFunctionsOverride
         $eZObject = $this->getEZObject($contentId, true);
 
         $name = $eZObject['contentObject']->getFieldValue('name')->__toString();
-
         $search_array = array('/û/', '/ù/', '/ú/', '/ø/', '/ô/', '/ò/', '/ó/', '/î/', '/ì/', '/í/', '/æ/', '/ê/', '/è/', '/é/', '/å/', '/â/', '/à/', '/á/', '/Û/', '/Ù/', '/Ú/', '/Ø/', '/Ô/', '/Ò/', '/Ó/', '/Î/', '/Ì/', '/Ì/', '/Í/', '/Æ/', '/Ê/', '/È/', '/É/', '/Å/', '/Â/', '/Â/', '/À/', '/Á/','/Ö/', '/Ä/', '/Ü/', "/'/", '/\&/', '/ö/', '/ä/', "/ /", '/ü/', '/ß/', '/\!/', '/\"/', '/\§/', '/\$/', '/\%/', '/\//', '/\(/', '/\)/', '/\=/', '/\?/', '/\@/', '/\#/', '/\*/', '/€/');
         $replace_array = array('u', 'u', 'u', 'o', 'o', 'o', 'o', 'i', 'i', 'i', 'ae', 'e', 'e', 'e', 'a', 'a', 'a', 'a', 'U', 'U', 'U', 'O', 'O', 'O', 'O', 'I', 'I', 'I', 'I', 'Ae', 'E', 'E', 'E', 'A', 'A', 'A', 'A', 'A', 'Oe', 'Ae', 'Ue', '', '+', 'oe', 'ae', "-", 'ue', 'ss', '', '', '', '', '', '', '', '', '', '', '', '', '', '');
         $slug = preg_replace($search_array, $replace_array, strtolower($name));
         $description = $eZObject['parentContentObject']->getFieldValue('description')->__toString();
         $locale = $this->container->getParameter('sylius.locale');
+
         $product->setCurrentLocale($locale);
         $product->setFallbackLocale($locale);
         $product->setSlug($slug);
         $product->setName($name);
         $product->setDescription($description);
-        #die(var_dump($eZObject['parentContentObject']->getFieldValue('description')));
 
         $product = $this->addMasterVariant($product, $eZObject['contentObject']);
 
