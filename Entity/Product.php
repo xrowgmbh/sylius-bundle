@@ -4,15 +4,19 @@ namespace xrow\syliusBundle\Entity;
 
 use Sylius\Component\Core\Model\Product as SyliusProduct;
 
-#use Doctrine\ORM\EntityRepository;
-#use Doctrine\ORM\Mapping as ORM;
+use Doctrine\ORM\Mapping as ORM;
 
-#/**
-# * @ORM\Entity(repositoryClass="xrow\syliusBundle\Repository\ProductRepository",readOnly=true)
-# */
+/**
+* xrow\restBundle\Entity\User
+*
+* @ORM\Table(name="sylius_product")
+* @ORM\Entity(repositoryClass="xrow\syliusBundle\Repository\ProductRepository")
+*/
 class Product extends SyliusProduct
 {
-
+    /**
+     * @ORM\Column(type="integer", unique=true)
+     */
     protected $content_id;
 
     public function getContentId()
