@@ -1,14 +1,5 @@
 <?php
 
-/*
- * This file is part of the Sylius package.
- *
- * (c) Paweł Jędrzejewski
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
 namespace xrow\syliusBundle\Entity;
 
 use Sylius\Component\Core\Model\Product as SyliusProduct;
@@ -21,6 +12,7 @@ use Sylius\Component\Core\Model\Product as SyliusProduct;
 # */
 class Product extends SyliusProduct
 {
+
     protected $content_id;
 
     public function getContentId()
