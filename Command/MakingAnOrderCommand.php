@@ -40,9 +40,14 @@ EOT
         $syliusOFRef = $container->get('xrow.sylius.override.functions');
         // create a cart
         try {
-            $cart = $syliusOFRef->addProductToCartAction($contentId);
-            die(var_dump($cart));
-            $output->writeln(sprintf('A new cart with id <info>%s</info> has been added', $cartItemArray[0]->getId()));
+            $cart = $syliusOFRef->addProductToCart($contentId);
+            $output->writeln(sprintf('A new cart with id <info>%s</info> has been added', $cart->getId()));
+            // set user
+            $user = $syliusOFRef->setUserToOrder($cart);
+            // set shipment
+            $syliusOFRef->setShipmentToOrder($cart);
+            // checkout
+            $checkout = $syliusOFRef->checkoutTheOrder($cart);
         } catch (ItemResolvingException $exception) {
             $output->writeln(sprintf('ERROR! Message <info>%s</info> has been added', $exception->getMessage()));
         }

@@ -9,9 +9,9 @@
             <argument type="service" id="service_container" /> 
         </service>
 
-        <!--service id="xrow.sylius.repository.product" class="xrow\syliusBundle\Repository\ProductRepository">
+        <service id="xrow.sylius.repository.user" class="xrow\syliusBundle\Repository\UserRepository">
             <argument type="service" id="service_container" /> 
-        </service-->
+        </service>
     </services>
 
 </container>

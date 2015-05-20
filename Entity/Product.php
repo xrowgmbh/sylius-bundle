@@ -3,15 +3,13 @@
 namespace xrow\syliusBundle\Entity;
 
 use Sylius\Component\Core\Model\Product as SyliusProduct;
-
 use Doctrine\ORM\Mapping as ORM;
 
 /**
-* xrow\restBundle\Entity\User
-*
-* @ORM\Table(name="sylius_product")
-* @ORM\Entity(repositoryClass="xrow\syliusBundle\Repository\ProductRepository")
-*/
+ *
+ * @ORM\Table(name="sylius_product")
+ * @ORM\Entity(repositoryClass="xrow\syliusBundle\Repository\ProductRepository")
+ */
 class Product extends SyliusProduct
 {
     /**
@@ -29,17 +27,4 @@ class Product extends SyliusProduct
         $this->content_id = $contentId;
         return $this;
     }
-
-    /*public function setMasterVariant(VariantInterface $masterVariant)
-    {
-        if($masterVariant instanceof ProductVariant) {
-            $masterVariant->setMaster(true);
-            if (!$this->variants->contains($masterVariant)) {
-                $masterVariant->setProduct($this);
-                $this->variants->add($masterVariant);
-            }
-        }
-
-        return $this;
-    }*/
 }
