@@ -46,7 +46,7 @@ class SyliusDefaultFunctionsOverride
      */
     public function addProductToCart($contentId)
     {
-        // get order
+        // ONLY FOR TESTING Get order
         if($tmpOder = $this->sylius['OrderRepository']->find(1))
         {
             return $tmpOder;
@@ -57,11 +57,11 @@ class SyliusDefaultFunctionsOverride
         $cartItem = $this->sylius['CartItemController']->createNew(); // Sylius\Component\Core\Model\OrderItem
         try {
             if (!$syliusProduct = $this->sylius['ProductRepository']->findOneBy(array('content_id' => $contentId))) {
-                // create new sylius product
+                // Create new sylius product
                 $syliusProduct = $this->createNewProductAndVariant($contentId);
             }
             $syliusProductVariant = $syliusProduct->getMasterVariant();
-            // put product variant to the cart
+            // Put product variant to the cart
             $cartItem->setVariant($syliusProductVariant);
 
             $quantity = $cartItem->getQuantity();
@@ -100,16 +100,13 @@ class SyliusDefaultFunctionsOverride
      */
     public function setUserToOrder(\Sylius\Component\Core\Model\Order $order)
     {
-        $oauthToken = $this->container->get('security.context')->getToken();
-        if ($oauthToken === NULL) {
-            // show login page or do this here
-            $userRepository = $this->container->get('xrow.sylius.repository.user');
-            $username = 'schaller';
-            $password = 'cschall';
-            $user = $userRepository->loginUser($username, $password);
-            if (!$user) {
-                throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException(sprintf('User with username %s does not exist.', $username));
-            }
+        // show login page or do this here
+        $userRepository = $this->container->get('xrow.sylius.repository.user');
+        $username = 'schaller';
+        $password = 'cschall';
+        $user = $userRepository->loadUserByCredentials($username, $password);
+        if (!$user) {
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException(sprintf('User with username %s does not exist.', $username));
         }
         $order->setShippingAddress($this->createAddress('shipping'));
         $order->setBillingAddress($this->createAddress('billing'));
@@ -222,7 +219,7 @@ class SyliusDefaultFunctionsOverride
      * @param string $getParent
      * @return multitype:NULL
      */
-    private function getEZObject($contentId, $getParent = false)
+    public function getEZObject($contentId, $getParent = false)
     {
         $eZAPIRepository = $this->container->get('ezpublish.api.repository');
         $contentCervice = $eZAPIRepository->getContentService();
