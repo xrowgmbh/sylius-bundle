@@ -16,27 +16,36 @@ use Symfony\Component\EventDispatcher\GenericEvent;
 use Sylius\Component\Cart\Event\CartItemEvent;
 use Sylius\Component\Cart\Resolver\ItemResolvingException;
 use Sylius\Component\Cart\SyliusCartEvents;
+
+use Sylius\Component\Core\Model\OrderInterface;
+use Sylius\Component\Core\Model\OrderItemInterface;
+use Sylius\Component\Core\Model\ProductInterface;
+use Sylius\Component\Core\Model\PaymentInterface;
 use Sylius\Component\Core\Model\ShipmentInterface;
+use Sylius\Component\Shipping\Model\ShippingMethodInterface;
+use Sylius\Component\Addressing\Model\AddressInterface;
 
-#use xrow\syliusBundle\Entity\User as User;
-
-#use Faker\Provider\DateTime as FakeDateTime;
+use Sylius\Component\Core\SyliusCheckoutEvents;
+use Sylius\Component\Core\SyliusOrderEvents;
+use Sylius\Component\Order\OrderTransitions;
 
 class SyliusDefaultFunctionsOverride
 {
     private $container;
+    private $entityManager;
+    private $eventDispatcher;
     private $sylius = array();
 
     public function __construct(ContainerInterface $container)
     {
         $this->container = $container;
+        $this->entityManager = $this->container->get('doctrine.orm.entity_manager');
+        $this->eventDispatcher = $this->container->get('event_dispatcher');
         $this->sylius['CartProvider'] = $this->container->get('sylius.cart_provider');
         $this->sylius['CartItemController'] = $this->container->get('sylius.controller.cart_item');
         $this->sylius['OrderRepository'] = $this->container->get('sylius.repository.order');
         $this->sylius['ProductRepository'] = $this->container->get('sylius.repository.product');
-        $this->sylius['ShipmentRepository'] = $this->container->get('sylius.repository.shipment');
         $this->sylius['PriceCalculator'] = $this->container->get('sylius.price_calculator');
-        //$this->sylius['ProcessController'] = $this->container->get('sylius.controller.process');
     }
 
     /**
@@ -52,7 +61,6 @@ class SyliusDefaultFunctionsOverride
             return $tmpOder;
         }
 
-        $eventDispatcher = $this->container->get('event_dispatcher');
         $cart = $this->sylius['CartProvider']->getCart();
         $cartItem = $this->sylius['CartItemController']->createNew(); // Sylius\Component\Core\Model\OrderItem
         try {
@@ -66,9 +74,11 @@ class SyliusDefaultFunctionsOverride
 
             $quantity = $cartItem->getQuantity();
             $context = array('quantity' => $quantity);
+            /*
+              we don't have here a user
             if (null !== $user = $cart->getUser()) {
                 $context['groups'] = $user->getGroups()->toArray();
-            }
+            }*/
 
             $cartItem->setUnitPrice($this->sylius['PriceCalculator']->calculate($syliusProductVariant, $context));
             foreach ($cart->getItems() as $cartItemTmp) {
@@ -81,9 +91,9 @@ class SyliusDefaultFunctionsOverride
             $event = new CartItemEvent($cart, $cartItem);
             $event->isFresh(true);
             // Update models
-            $eventDispatcher->dispatch(SyliusCartEvents::ITEM_ADD_INITIALIZE, $event);
-            $eventDispatcher->dispatch(SyliusCartEvents::CART_CHANGE, new GenericEvent($cart));
-            $eventDispatcher->dispatch(SyliusCartEvents::CART_SAVE_INITIALIZE, $event);
+            $this->eventDispatcher->dispatch(SyliusCartEvents::ITEM_ADD_INITIALIZE, $event);
+            $this->eventDispatcher->dispatch(SyliusCartEvents::CART_CHANGE, new GenericEvent($cart));
+            $this->eventDispatcher->dispatch(SyliusCartEvents::CART_SAVE_INITIALIZE, $event);
 
             return $cart;
         } catch (ItemResolvingException $exception) {
@@ -95,81 +105,62 @@ class SyliusDefaultFunctionsOverride
     /**
      * get current logged in user and add his data to order
      * 
-     * @param \Sylius\Component\Core\Model\Order $order
-     * @return \Sylius\Component\Core\Model\Order
+     * @param OrderInterface $order
+     * @param array $userData
+     * @return OrderInterface $order
      */
-    public function setUserToOrder(\Sylius\Component\Core\Model\Order $order)
+    public function checkoutOrder(OrderInterface $order, $userData)
     {
-        // show login page or do this here
-        $userRepository = $this->container->get('xrow.sylius.repository.user');
-        $username = 'schaller';
-        $password = 'cschall';
-        $user = $userRepository->loadUserByCredentials($username, $password);
-        if (!$user) {
-            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException(sprintf('User with username %s does not exist.', $username));
-        }
-        $order->setShippingAddress($this->createAddress('shipping'));
-        $order->setBillingAddress($this->createAddress('billing'));
-        $this->dispatchEvents($order);
+        // set temporary shipment
+        $shipment = $this->createShipment($order);
+        $order->addShipment($shipment);
 
+        // set temporary billing address
+        $billindAddress = $this->createAddress($userData);
+        $order->setBillingAddress($billindAddress);
+
+        $this->eventDispatcher->dispatch(SyliusCartEvents::CART_CHANGE, new GenericEvent($order));
+        $this->eventDispatcher->dispatch(SyliusCheckoutEvents::SHIPPING_PRE_COMPLETE, new GenericEvent($order));
+        $this->container->get('sm.factory')->get($order, OrderTransitions::GRAPH)->apply(OrderTransitions::SYLIUS_CREATE);
+
+        // Calculate amount of the order
         $order->calculateTotal();
+        // Set current time
         $order->complete();
-    
-        if ($i < 4) {
-            $order->setUser($this->getReference('Sylius.User-Administrator'));
-    
-            $this->createPayment($order, PaymentInterface::STATE_COMPLETED);
-        } else {
-            $order->setUser($this->getReference('Sylius.User-'.rand(1, 15)));
-    
-            $this->createPayment($order);
-        }
-    
-        $order->setCompletedAt($this->faker->dateTimeThisDecade);
-        $this->setReference('Sylius.Order-'.$i, $order);
-    
-        $manager->persist($order);
+
+        // set temporary user
+        $user = $this->createUser($userData['first_name'], $userData['last_name'], $userData['email'], $billindAddress);
+        $order->setUser($user);
+
+        $payment = $this->createPayment($order);
+        $order->addPayment($payment);
+        $this->eventDispatcher->dispatch(SyliusCheckoutEvents::FINALIZE_PRE_COMPLETE, new GenericEvent($order));
+
+        $this->eventDispatcher->dispatch(SyliusOrderEvents::PRE_CREATE, new GenericEvent($order));
+        $this->eventDispatcher->dispatch(SyliusCheckoutEvents::FINALIZE_PRE_COMPLETE, new GenericEvent($order));
+        $this->container->get('sm.factory')->get($order, OrderTransitions::GRAPH)->apply(OrderTransitions::SYLIUS_CREATE, true);
+
+        $this->entityManager->persist($order);
+        $this->entityManager->flush();
+
+        $this->eventDispatcher->dispatch(SyliusCheckoutEvents::FINALIZE_COMPLETE, new GenericEvent($order));
+        $this->eventDispatcher->dispatch(SyliusOrderEvents::POST_CREATE, new GenericEvent($order));
+
+        return $order;
     }
 
-    public function setShipmentToOrder(\Sylius\Component\Core\Model\Order $cart)
-    {
-        $shipment = $this->sylius['ShipmentRepository']->createNew();
-        $shipmentMethode = $this->sylius['ShipmentRepository']->find(1);
-        die(var_dump($shipmentMethode));
-        $shipment->setMethod($shipmentMethode);
-        $shipmentState = array_rand(array_flip(array(
-            ShipmentInterface::STATE_PENDING,
-            ShipmentInterface::STATE_ONHOLD,
-            ShipmentInterface::STATE_CHECKOUT,
-            ShipmentInterface::STATE_SHIPPED,
-            ShipmentInterface::STATE_READY,
-            ShipmentInterface::STATE_BACKORDERED,
-            ShipmentInterface::STATE_RETURNED,
-            ShipmentInterface::STATE_CANCELLED,
-        )));
-        $shipment->setState($shipmentState);
-
-        foreach ($cart->getInventoryUnits() as $item) {
-            $shipment->addItem($item);
-        }
-
-        $cart->addShipment($shipment);
-    }
-
-    public function checkoutTheOrder()
-    {
-        
-    }
-
+    /**
+     * Create new Sylius product to make possible to order via Sylius
+     * 
+     * @param unknown $contentId
+     * @return ProductInterface $product
+     */
     private function createNewProductAndVariant($contentId)
     {
-        // sylius.manager.tax_category
-        $entityManager = $this->container->get('doctrine.orm.entity_manager');
-
         $product = $this->sylius['ProductRepository']->createNew();
         $product->setContentId($contentId);
 
-        $taxCategoryRepository = $entityManager->getRepository('\Sylius\Component\Taxation\Model\TaxCategory');
+        $taxCategoryRepository = $this->entityManager->getRepository('\Sylius\Component\Taxation\Model\TaxCategory');
         $taxCategory = $taxCategoryRepository->find(1);
         $product->setTaxCategory($taxCategory);
 
@@ -190,7 +181,7 @@ class SyliusDefaultFunctionsOverride
         $product->setName($name);
         $product->setDescription($description);
 
-        $product = $this->addMasterVariant($product, $eZObject['contentObject'], $entityManager);
+        $product = $this->addMasterVariant($product, $eZObject['contentObject']);
 
         // get ArchType 
         switch($name) {
@@ -208,16 +199,17 @@ class SyliusDefaultFunctionsOverride
         $archetype = $archetypeRepository->findOneBy(array('code' => $archcode));
         $product->setArchetype($archetype);
 
-        $entityManager->persist($product);
-        $entityManager->flush();
+        $this->entityManager->persist($product);
+        $this->entityManager->flush();
         return $product;
     }
 
     /**
+     * Get eZ object, in our case this is the original product
      * 
      * @param unknown $contentId
      * @param string $getParent
-     * @return multitype:NULL
+     * @return array $eZObject
      */
     public function getEZObject($contentId, $getParent = false)
     {
@@ -246,7 +238,7 @@ class SyliusDefaultFunctionsOverride
 
         $price = (int)$contentObject->getFieldValue('price_de')->__toString() * 100;
         // Sylius Produkt Variant
-        $variant->setSku(intval(rand(1,9) . rand(0,9) . rand(0,9) . rand(0,9) . rand(0,9)));
+        $variant->setSku($product->getContentId());
         $variant->setAvailableOn($contentObject->versionInfo->creationDate);
         $variant->setOnHand(100);
         $variant->setPrice($price);
@@ -255,27 +247,97 @@ class SyliusDefaultFunctionsOverride
 
         return $product;
     }
-    
+
+    /**
+     * Create Sylius shipment
+     * 
+     * @param OrderInterface $order
+     * @return ShipmentInterface $shipment
+     */
+    protected function createShipment(OrderInterface $order)
+    {
+        $shipment = $this->container->get('sylius.repository.shipment')->createNew();
+        $shippingMethod = $this->container->get('sylius.repository.shipping_method')->find(1);
+        $shipment->setMethod($shippingMethod);
+        $shipment->setState(ShipmentInterface::STATE_CHECKOUT);
+
+        foreach ($order->getInventoryUnits() as $item) {
+            $shipment->addItem($item);
+        }
+        $this->entityManager->persist($shipment);
+
+        return $shipment;
+    }
+
+    /**
+     * Create Sylius address
+     * 
+     * @param array $user
+     * @param string $type
+     * @return AddressInterface $address
+     */
     protected function createAddress($user)
     {
-        /* @var $address AddressInterface */
-        $address = $this->getAddressRepository()->createNew();
-        $address->setFirstname($this->faker->firstName);
-        $address->setLastname($this->faker->lastName);
-        $address->setCity($this->faker->city);
-        $address->setStreet($this->faker->streetAddress);
-        $address->setPostcode($this->faker->postcode);
-    
-        do {
-            $isoName = $this->faker->countryCode;
-        } while ('UK' === $isoName);
-    
-        $country  = $this->getReference('Sylius.Country.'.$isoName);
-        $province = $country->hasProvinces() ? $this->faker->randomElement($country->getProvinces()->toArray()) : null;
-    
+        $address = $this->container->get('sylius.repository.address')->createNew();
+        $address->setFirstname($user['first_name']);
+        $address->setLastname($user['last_name']);
+        $address->setCity($user['billing_city']);
+        $address->setStreet($user['billing_street']);
+        $address->setPostcode($user['billing_postal_code']);
+
+        $countryRepository = $this->entityManager->getRepository('\Sylius\Component\Addressing\Model\Country');
+        $country = $this->container->get('sylius.repository.country')->find(87);
         $address->setCountry($country);
-        $address->setProvince($province);
-    
+
+        $this->entityManager->persist($address);
+
         return $address;
+    }
+
+    /**
+     * Create Sylius payment
+     * 
+     * @param OrderInterface $order
+     * return PaymentInterface $payment
+     */
+    protected function createPayment(OrderInterface $order)
+    {
+        $payment = $this->container->get('sylius.repository.payment')->createNew();
+        $payment->setOrder($order);
+        $payment->setMethod($this->container->get('sylius.repository.payment_method')->find(1));
+        $payment->setAmount($order->getTotal());
+        $payment->setCurrency($order->getCurrency());
+        $payment->setState(PaymentInterface::STATE_COMPLETED);
+
+        $this->entityManager->persist($payment);
+
+        return $payment;
+    }
+
+    /**
+     * Create Sylius user
+     * 
+     * @param string $firstName
+     * @param string $lastName
+     * @param string $email
+     * @param AddressInterface $billindAddress
+     * @return UserInterface $user
+     */
+    protected function createUser($firstName, $lastName, $email, $billindAddress)
+    {
+        $user = $this->container->get('sylius.repository.user')->createNew();
+        $user->setFirstname($firstName);
+        $user->setLastname($lastName);
+        $user->setUsername($email);
+        $user->setEmail($email);
+        $user->setPlainPassword('%6Gfr420?');
+        $user->setRoles(array('ROLE_USER'));
+        $user->setCurrency('EUR');
+        $user->setEnabled(true);
+        $user->setBillingAddress($billindAddress);
+
+        $this->entityManager->persist($user);
+
+        return $user;
     }
 }

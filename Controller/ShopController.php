@@ -11,6 +11,32 @@ use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 
 class ShopController extends Controller
 {
+    public $userData = array(
+            'first_name' =>             'Björn',
+            'last_name' =>              'Dieding',
+            'salutation' =>             'Herr',
+            'phone' =>                  '0151 154221',
+            'email' =>                  'kristina@xrow.de',
+            'company' =>                'xrow GmbH',
+            'position' =>               'Geschäftsleitung',
+            'vertical' =>               'IT',
+            'company_size' =>           '5-10',
+            'billing_city' =>           'Hannover',
+            'billing_country' =>        'Deutschland',
+            'billing_postal_code' =>    '30159',
+            'billing_street' =>         'Goseriede',
+            'billing_street_number' =>  '4',
+            'mailing_first_name' =>     'Kristina',
+            'mailing_last_name' =>      'Ebel',
+            'mailing_salutation' =>     'Frau',
+            'mailing_company' =>        'xrow GmbH',
+            'mailing_city' =>           'Hannover',
+            'mailing_country' =>        'Deutschland',
+            'mailing_postal_code' =>    '30159',
+            'mailing_street' =>         'Goseriede',
+            'mailing_street_number' =>  '4',
+            'promotion' =>              true,
+            'vatin' =>                  'USt-IdNr' );
     /**
      * @Route("/shop/order/{contentId}")
      */
@@ -25,13 +51,14 @@ class ShopController extends Controller
         else {
             $contentIds = array($contentId);
         }
-        // Add eZ object(s) zu cart
+        // Add eZ object(s) to cart
         foreach ($contentIds as $contentId) {
-            $orderID = $this->addProductToCart($contentId);
+            $order = $syliusOFRef->addProductToCart($contentId);
         }
 
-        $data = $this->getRequiredData($syliusOFRef);
-
+        $order = $syliusOFRef->checkoutOrder($order, (array)$this->userData);
+        $data = $this->getRequiredData($order, (array)$this->userData);
+die(var_dump($data));
         //Get jBPM Client
         $jbpmClient = $this->container->get('jbpm.client');
         $processDefinition = $jbpmClient->getProcess('cms.order');
@@ -52,40 +79,15 @@ class ShopController extends Controller
         }
     }
 
-    private function getRequiredData($syliusOFRef)
+    private function getRequiredData(OrderInterface $order, $userData)
     {
+        $data = $userData;
         // Get order
-        $order = $syliusOFRef->getOrder();
-        die(var_dump($order));
-        /*'order' => array(
-                array( 'sku' => "123123", "amount" => "",
-                )*/
-        $data = array(
-                'first_name' =>             'Björn',
-                'last_name' =>              'Dieding',
-                'salutation' =>             'Herr',
-                'phone' =>                  '0151 154221',
-                'email' =>                  'bjoern@xrow.de',
-                'company' =>                'xrow GmbH',
-                'position' =>               'Geschäftsleitung',
-                'vertical' =>               'IT',
-                'company_size' =>           '5-10',
-                'billing_city' =>           'Hannover',
-                'billing_country' =>        'Deutschland',
-                'billing_postal_code' =>    '30159',
-                'billing_street' =>         'Goseriede',
-                'billing_street_number' =>  '4',
-                'mailing_first_name' =>     'Kristina',
-                'mailing_last_name' =>      'Ebel',
-                'mailing_salutation' =>     'Frau',
-                'mailing_company' =>        'xrow GmbH',
-                'mailing_city' =>           'Hannover',
-                'mailing_country' =>        'Deutschland',
-                'mailing_postal_code' =>    '30159',
-                'mailing_street' =>         'Goseriede',
-                'mailing_street_number' =>  '4',
-                'promotion' =>              true,
-                'vatin' =>                  'USt-IdNr' );
+        $orderItems = $order->getItems();
+        foreach ($orderItems as $orderItem) {
+            $variant = $orderItem->getVariant();
+            $data['order'][$order->getId()][$orderItem->getId()] = array('sku' => $variant->getSku(), 'amount' => $variant->getPrice());
+        }
 
         return $data;
     }
