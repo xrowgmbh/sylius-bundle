@@ -121,7 +121,7 @@ class SyliusDefaultFunctionsOverride
 
         $this->eventDispatcher->dispatch(SyliusCartEvents::CART_CHANGE, new GenericEvent($order));
         $this->eventDispatcher->dispatch(SyliusCheckoutEvents::SHIPPING_PRE_COMPLETE, new GenericEvent($order));
-        $this->container->get('sm.factory')->get($order, OrderTransitions::GRAPH)->apply(OrderTransitions::SYLIUS_CREATE);
+        #$this->container->get('sm.factory')->get($order, OrderTransitions::GRAPH)->apply(OrderTransitions::SYLIUS_CREATE);
 
         // Calculate amount of the order
         $order->calculateTotal();
@@ -138,7 +138,7 @@ class SyliusDefaultFunctionsOverride
 
         $this->eventDispatcher->dispatch(SyliusOrderEvents::PRE_CREATE, new GenericEvent($order));
         $this->eventDispatcher->dispatch(SyliusCheckoutEvents::FINALIZE_PRE_COMPLETE, new GenericEvent($order));
-        $this->container->get('sm.factory')->get($order, OrderTransitions::GRAPH)->apply(OrderTransitions::SYLIUS_CREATE, true);
+        $this->container->get('sm.factory')->get($order, OrderTransitions::GRAPH)->apply(OrderTransitions::SYLIUS_CONFIRM, true);
 
         $this->entityManager->persist($order);
         $this->entityManager->flush();
@@ -165,13 +165,13 @@ class SyliusDefaultFunctionsOverride
         $product->setTaxCategory($taxCategory);
 
         // get eZ Object
-        $eZObject = $this->getEZObject($contentId, true);
+        $eZObjectArray = $this->getEZObjectWithParent($contentId);
 
-        $name = $eZObject['contentObject']->getFieldValue('name')->__toString();
+        $name = $eZObjectArray['contentObject']->getFieldValue('name')->__toString();
         $search_array = array('/û/', '/ù/', '/ú/', '/ø/', '/ô/', '/ò/', '/ó/', '/î/', '/ì/', '/í/', '/æ/', '/ê/', '/è/', '/é/', '/å/', '/â/', '/à/', '/á/', '/Û/', '/Ù/', '/Ú/', '/Ø/', '/Ô/', '/Ò/', '/Ó/', '/Î/', '/Ì/', '/Ì/', '/Í/', '/Æ/', '/Ê/', '/È/', '/É/', '/Å/', '/Â/', '/Â/', '/À/', '/Á/','/Ö/', '/Ä/', '/Ü/', "/'/", '/\&/', '/ö/', '/ä/', "/ /", '/ü/', '/ß/', '/\!/', '/\"/', '/\§/', '/\$/', '/\%/', '/\//', '/\(/', '/\)/', '/\=/', '/\?/', '/\@/', '/\#/', '/\*/', '/€/');
         $replace_array = array('u', 'u', 'u', 'o', 'o', 'o', 'o', 'i', 'i', 'i', 'ae', 'e', 'e', 'e', 'a', 'a', 'a', 'a', 'U', 'U', 'U', 'O', 'O', 'O', 'O', 'I', 'I', 'I', 'I', 'Ae', 'E', 'E', 'E', 'A', 'A', 'A', 'A', 'A', 'Oe', 'Ae', 'Ue', '', '+', 'oe', 'ae', "-", 'ue', 'ss', '', '', '', '', '', '', '', '', '', '', '', '', '', '');
         $slug = preg_replace($search_array, $replace_array, strtolower($name));
-        $description = $eZObject['parentContentObject']->getFieldValue('description')->__toString();
+        $description = $eZObjectArray['parentContentObject']->getFieldValue('description')->__toString();
         $locale = $this->container->getParameter('sylius.locale');
 
         $product->setContentId($contentId);
@@ -181,7 +181,7 @@ class SyliusDefaultFunctionsOverride
         $product->setName($name);
         $product->setDescription($description);
 
-        $product = $this->addMasterVariant($product, $eZObject['contentObject']);
+        $product = $this->addMasterVariant($product, $eZObjectArray['contentObject']);
 
         // get ArchType 
         switch($name) {
@@ -207,21 +207,32 @@ class SyliusDefaultFunctionsOverride
     /**
      * Get eZ object, in our case this is the original product
      * 
-     * @param unknown $contentId
-     * @param string $getParent
-     * @return array $eZObject
+     * @param integer $contentId
+     * @return array $eZObjectArray
      */
-    public function getEZObject($contentId, $getParent = false)
+    public function getEZObjectWithParent($contentId)
     {
         $eZAPIRepository = $this->container->get('ezpublish.api.repository');
         $contentCervice = $eZAPIRepository->getContentService();
-        $eZObject = array('contentObject' => $contentCervice->loadContent($contentId));
-        if($getParent) {
-            $reverseRelations = $contentCervice->loadReverseRelations($eZObject['contentObject']->versionInfo->contentInfo);
-            $parentContentInfoObject = $reverseRelations[0]->sourceContentInfo;
-            $eZObject['parentContentObject'] = $contentCervice->loadContent($parentContentInfoObject->id);
-        }
-        return $eZObject;
+        $eZObjectArray = array('contentObject' => $contentCervice->loadContent($contentId));
+        // Get the parent of eZ product
+        $reverseRelations = $contentCervice->loadReverseRelations($eZObjectArray['contentObject']->versionInfo->contentInfo);
+        $parentContentInfoObject = $reverseRelations[0]->sourceContentInfo;
+        $eZObjectArray['parentContentObject'] = $contentCervice->loadContent($parentContentInfoObject->id);
+        return $eZObjectArray;
+    }
+    
+    /**
+     * Get eZ object, in our case this is the original product
+     *
+     * @param integer $contentId
+     * @return \eZ\Publish\API\Repository\Values\Content\Content
+     */
+    public function getEZObject($contentId)
+    {
+        $eZAPIRepository = $this->container->get('ezpublish.api.repository');
+        $contentCervice = $eZAPIRepository->getContentService();
+        return $contentCervice->loadContent($contentId);
     }
 
     /**

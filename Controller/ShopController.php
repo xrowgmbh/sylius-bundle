@@ -37,6 +37,7 @@ class ShopController extends Controller
             'mailing_street_number' =>  '4',
             'promotion' =>              true,
             'vatin' =>                  'USt-IdNr' );
+
     /**
      * @Route("/shop/order/{contentId}")
      */
@@ -44,6 +45,14 @@ class ShopController extends Controller
     {
         // Get sylius overwrite service
         $syliusOFRef = $this->container->get('xrow.sylius.override.functions');
+        // We need the data as array
+        $userData = (array)$this->userData;
+        // Validate user data
+        $validateResult = $this->validateAndGetDataViaPlugin($userData);
+        if ($validateResult !== true) {
+            // hier dann die Fehler ausgeben
+            die(var_dump($validateResult));
+        }
 
         if(strpos($contentId, '|') !== false) {
             $contentIds = explode('|', $contentId);
@@ -56,9 +65,10 @@ class ShopController extends Controller
             $order = $syliusOFRef->addProductToCart($contentId);
         }
 
-        $order = $syliusOFRef->checkoutOrder($order, (array)$this->userData);
-        $data = $this->getRequiredData($order, (array)$this->userData);
+        $order = $syliusOFRef->checkoutOrder($order, $userData);
+        $data = $this->getRequiredData($order, $userData);
 die(var_dump($data));
+#die(var_dump($data));
         //Get jBPM Client
         $jbpmClient = $this->container->get('jbpm.client');
         $processDefinition = $jbpmClient->getProcess('cms.order');
@@ -90,5 +100,18 @@ die(var_dump($data));
         }
 
         return $data;
+    }
+
+    private function validateAndGetDataViaPlugin($data)
+    {
+        if ($this->container->hasParameter('xrow.sylius.data.validator')) {
+            $validatorServiceName = $this->container->getParameter('xrow.sylius.data.validator');
+            if ($this->container->has($validatorServiceName)) {
+                $validator = $this->container->get($validatorServiceName);
+                $result = $validator->validate($data);
+                return $result;
+            }
+        }
+        return true;
     }
 }
