@@ -49,18 +49,14 @@ class SyliusDefaultFunctionsOverride
     }
 
     /**
+     * Add eZ Object to Sylius cart
+     * 
      * @param  integer $contentId The contentId/object id of an ez object
      * @throws \Sylius\Component\Cart\Resolver\ItemResolvingException
      * @return \Sylius\Component\Core\Model\Order
      */
     public function addProductToCart($contentId)
     {
-        // ONLY FOR TESTING Get order
-        if($tmpOder = $this->sylius['OrderRepository']->find(1))
-        {
-            return $tmpOder;
-        }
-
         $cart = $this->sylius['CartProvider']->getCart();
         $cartItem = $this->sylius['CartItemController']->createNew(); // Sylius\Component\Core\Model\OrderItem
         try {
@@ -75,7 +71,7 @@ class SyliusDefaultFunctionsOverride
             $quantity = $cartItem->getQuantity();
             $context = array('quantity' => $quantity);
             /*
-              we don't have here a user
+              we don't have here a sylius user
             if (null !== $user = $cart->getUser()) {
                 $context['groups'] = $user->getGroups()->toArray();
             }*/
@@ -103,7 +99,7 @@ class SyliusDefaultFunctionsOverride
     }
 
     /**
-     * get current logged in user and add his data to order
+     * Make a checkout
      * 
      * @param OrderInterface $order
      * @param array $userData
@@ -111,34 +107,18 @@ class SyliusDefaultFunctionsOverride
      */
     public function checkoutOrder(OrderInterface $order, $userData)
     {
-        // set temporary shipment
-        $shipment = $this->createShipment($order);
-        $order->addShipment($shipment);
-
-        // set temporary billing address
-        $billindAddress = $this->createAddress($userData);
-        $order->setBillingAddress($billindAddress);
-
-        $this->eventDispatcher->dispatch(SyliusCartEvents::CART_CHANGE, new GenericEvent($order));
-        $this->eventDispatcher->dispatch(SyliusCheckoutEvents::SHIPPING_PRE_COMPLETE, new GenericEvent($order));
-        #$this->container->get('sm.factory')->get($order, OrderTransitions::GRAPH)->apply(OrderTransitions::SYLIUS_CREATE);
+        // set temporary user
+        if ($order->getUser() === null) {
+            //$user = $this->createUser($userData['first_name'], $userData['last_name'], $userData['email'], $billindAddress);
+            $user = $this->createUser($userData['first_name'], $userData['last_name'], $userData['email']);
+            $order->setUser($user);
+        }
 
         // Calculate amount of the order
         $order->calculateTotal();
         // Set current time
         $order->complete();
-
-        // set temporary user
-        $user = $this->createUser($userData['first_name'], $userData['last_name'], $userData['email'], $billindAddress);
-        $order->setUser($user);
-
-        $payment = $this->createPayment($order);
-        $order->addPayment($payment);
-        $this->eventDispatcher->dispatch(SyliusCheckoutEvents::FINALIZE_PRE_COMPLETE, new GenericEvent($order));
-
-        $this->eventDispatcher->dispatch(SyliusOrderEvents::PRE_CREATE, new GenericEvent($order));
-        $this->eventDispatcher->dispatch(SyliusCheckoutEvents::FINALIZE_PRE_COMPLETE, new GenericEvent($order));
-        $this->container->get('sm.factory')->get($order, OrderTransitions::GRAPH)->apply(OrderTransitions::SYLIUS_CONFIRM, true);
+        $order->setState(OrderInterface::STATE_CONFIRMED);
 
         $this->entityManager->persist($order);
         $this->entityManager->flush();
@@ -147,6 +127,21 @@ class SyliusDefaultFunctionsOverride
         $this->eventDispatcher->dispatch(SyliusOrderEvents::POST_CREATE, new GenericEvent($order));
 
         return $order;
+    }
+
+    public function removeOrder(OrderInterface $order)
+    {
+        if ($order !== null) {
+            try {
+                $user = $order->getUser();
+                // Remove user and order
+                $this->entityManager->remove($order);
+                $this->entityManager->remove($user);
+                $this->entityManager->flush();
+            } catch (Exception $e) {
+                die(var_dump($e->getMessage()));
+            }
+        }
     }
 
     /**
@@ -221,7 +216,7 @@ class SyliusDefaultFunctionsOverride
         $eZObjectArray['parentContentObject'] = $contentCervice->loadContent($parentContentInfoObject->id);
         return $eZObjectArray;
     }
-    
+
     /**
      * Get eZ object, in our case this is the original product
      *
@@ -260,72 +255,6 @@ class SyliusDefaultFunctionsOverride
     }
 
     /**
-     * Create Sylius shipment
-     * 
-     * @param OrderInterface $order
-     * @return ShipmentInterface $shipment
-     */
-    protected function createShipment(OrderInterface $order)
-    {
-        $shipment = $this->container->get('sylius.repository.shipment')->createNew();
-        $shippingMethod = $this->container->get('sylius.repository.shipping_method')->find(1);
-        $shipment->setMethod($shippingMethod);
-        $shipment->setState(ShipmentInterface::STATE_CHECKOUT);
-
-        foreach ($order->getInventoryUnits() as $item) {
-            $shipment->addItem($item);
-        }
-        $this->entityManager->persist($shipment);
-
-        return $shipment;
-    }
-
-    /**
-     * Create Sylius address
-     * 
-     * @param array $user
-     * @param string $type
-     * @return AddressInterface $address
-     */
-    protected function createAddress($user)
-    {
-        $address = $this->container->get('sylius.repository.address')->createNew();
-        $address->setFirstname($user['first_name']);
-        $address->setLastname($user['last_name']);
-        $address->setCity($user['billing_city']);
-        $address->setStreet($user['billing_street']);
-        $address->setPostcode($user['billing_postal_code']);
-
-        $countryRepository = $this->entityManager->getRepository('\Sylius\Component\Addressing\Model\Country');
-        $country = $this->container->get('sylius.repository.country')->find(87);
-        $address->setCountry($country);
-
-        $this->entityManager->persist($address);
-
-        return $address;
-    }
-
-    /**
-     * Create Sylius payment
-     * 
-     * @param OrderInterface $order
-     * return PaymentInterface $payment
-     */
-    protected function createPayment(OrderInterface $order)
-    {
-        $payment = $this->container->get('sylius.repository.payment')->createNew();
-        $payment->setOrder($order);
-        $payment->setMethod($this->container->get('sylius.repository.payment_method')->find(1));
-        $payment->setAmount($order->getTotal());
-        $payment->setCurrency($order->getCurrency());
-        $payment->setState(PaymentInterface::STATE_COMPLETED);
-
-        $this->entityManager->persist($payment);
-
-        return $payment;
-    }
-
-    /**
      * Create Sylius user
      * 
      * @param string $firstName
@@ -334,21 +263,24 @@ class SyliusDefaultFunctionsOverride
      * @param AddressInterface $billindAddress
      * @return UserInterface $user
      */
-    protected function createUser($firstName, $lastName, $email, $billindAddress)
+    protected function createUser($firstName, $lastName, $email)
     {
-        $user = $this->container->get('sylius.repository.user')->createNew();
-        $user->setFirstname($firstName);
-        $user->setLastname($lastName);
-        $user->setUsername($email);
-        $user->setEmail($email);
-        $user->setPlainPassword('%6Gfr420?');
-        $user->setRoles(array('ROLE_USER'));
-        $user->setCurrency('EUR');
-        $user->setEnabled(true);
-        $user->setBillingAddress($billindAddress);
+        // check if user exists
+        $userRepository = $this->container->get('sylius.repository.user');
+        $user = $userRepository->findOneBy(array('email' => $email, 'lastName' => $lastName, 'firstName' => $firstName));
+        if ($user === null) {
+            $user = $this->container->get('sylius.repository.user')->createNew();
+            $user->setFirstname($firstName);
+            $user->setLastname($lastName);
+            $user->setUsername($email);
+            $user->setEmail($email);
+            $user->setPlainPassword('%6Gfr420?');
+            $user->setRoles(array('ROLE_USER'));
+            $user->setCurrency('EUR');
+            $user->setEnabled(true);
 
-        $this->entityManager->persist($user);
-
+            $this->entityManager->persist($user);
+        }
         return $user;
     }
 }

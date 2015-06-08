@@ -5,7 +5,8 @@ namespace xrow\syliusBundle\Controller;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Security\Core\Authentication\Token\AnonymousToken;
+
+use Sylius\Component\Core\Model\OrderInterface;
 
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 
@@ -17,6 +18,7 @@ class ShopController extends Controller
             'salutation' =>             'Herr',
             'phone' =>                  '0151 154221',
             'email' =>                  'kristina@xrow.de',
+            'fax' =>                    '0049 511 4512134',
             'company' =>                'xrow GmbH',
             'position' =>               'Geschäftsleitung',
             'vertical' =>               'IT',
@@ -29,6 +31,9 @@ class ShopController extends Controller
             'mailing_first_name' =>     'Kristina',
             'mailing_last_name' =>      'Ebel',
             'mailing_salutation' =>     'Frau',
+            'mailing_phone' =>          '0151 154221',
+            'mailing_email' =>          'kristina@xrow.de',
+            'mailing_fax' =>            '0049 511 4512134',
             'mailing_company' =>        'xrow GmbH',
             'mailing_city' =>           'Hannover',
             'mailing_country' =>        'Deutschland',
@@ -48,11 +53,7 @@ class ShopController extends Controller
         // We need the data as array
         $userData = (array)$this->userData;
         // Validate user data
-        $validateResult = $this->validateAndGetDataViaPlugin($userData);
-        if ($validateResult !== true) {
-            // hier dann die Fehler ausgeben
-            die(var_dump($validateResult));
-        }
+        // HERE
 
         if(strpos($contentId, '|') !== false) {
             $contentIds = explode('|', $contentId);
@@ -67,16 +68,16 @@ class ShopController extends Controller
 
         $order = $syliusOFRef->checkoutOrder($order, $userData);
         $data = $this->getRequiredData($order, $userData);
-die(var_dump($data));
-#die(var_dump($data));
+
         //Get jBPM Client
         $jbpmClient = $this->container->get('jbpm.client');
         $processDefinition = $jbpmClient->getProcess('cms.order');
 
         $processInstance = $processDefinition->start($data);
-        if(!is_null($processInstance)) {
+        if($processInstance !== null) {
             $task = $processInstance->currentTask();
-            if(!is_null($task)) {
+            if($task !== null) {
+                $syliusOFRef->removeOrder($order);
                 return $this->render('xrowjBPMBundle:Default:index.html.twig', array('processid' => $processInstance->getProcessInstanceId(),
                                                                                      'processName' => $processDefinition->getProcessDefinitionID()));
             }
@@ -94,9 +95,10 @@ die(var_dump($data));
         $data = $userData;
         // Get order
         $orderItems = $order->getItems();
+        $data['order'] = array('id' => $order->getId(), 'items' => array());
         foreach ($orderItems as $orderItem) {
             $variant = $orderItem->getVariant();
-            $data['order'][$order->getId()][$orderItem->getId()] = array('sku' => $variant->getSku(), 'amount' => $variant->getPrice());
+            $data['order']['items'][$orderItem->getId()] = array('sku' => $variant->getSku(), 'amount' => ($variant->getPrice()/100));
         }
 
         return $data;
