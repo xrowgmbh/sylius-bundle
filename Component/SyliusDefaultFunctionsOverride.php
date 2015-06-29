@@ -32,6 +32,7 @@ use Sylius\Component\Order\OrderTransitions;
 class SyliusDefaultFunctionsOverride
 {
     private $container;
+    public $eZAPIRepository;
     private $entityManager;
     private $eventDispatcher;
     private $sylius = array();
@@ -39,6 +40,7 @@ class SyliusDefaultFunctionsOverride
     public function __construct(ContainerInterface $container)
     {
         $this->container = $container;
+        $this->eZAPIRepository = $this->container->get('ezpublish.api.repository');
         $this->entityManager = $this->container->get('doctrine.orm.entity_manager');
         $this->eventDispatcher = $this->container->get('event_dispatcher');
         $this->sylius['CartProvider'] = $this->container->get('sylius.cart_provider');
@@ -123,8 +125,8 @@ class SyliusDefaultFunctionsOverride
         $this->entityManager->persist($order);
         $this->entityManager->flush();
 
-        $this->eventDispatcher->dispatch(SyliusCheckoutEvents::FINALIZE_COMPLETE, new GenericEvent($order));
-        $this->eventDispatcher->dispatch(SyliusOrderEvents::POST_CREATE, new GenericEvent($order));
+        #$this->eventDispatcher->dispatch(SyliusCheckoutEvents::FINALIZE_COMPLETE, new GenericEvent($order));
+        #$this->eventDispatcher->dispatch(SyliusOrderEvents::POST_CREATE, new GenericEvent($order));
 
         return $order;
     }
@@ -207,8 +209,7 @@ class SyliusDefaultFunctionsOverride
      */
     public function getEZObjectWithParent($contentId)
     {
-        $eZAPIRepository = $this->container->get('ezpublish.api.repository');
-        $contentCervice = $eZAPIRepository->getContentService();
+        $contentCervice = $this->eZAPIRepository->getContentService();
         $eZObjectArray = array('contentObject' => $contentCervice->loadContent($contentId));
         // Get the parent of eZ product
         $reverseRelations = $contentCervice->loadReverseRelations($eZObjectArray['contentObject']->versionInfo->contentInfo);
@@ -225,8 +226,7 @@ class SyliusDefaultFunctionsOverride
      */
     public function getEZObject($contentId)
     {
-        $eZAPIRepository = $this->container->get('ezpublish.api.repository');
-        $contentCervice = $eZAPIRepository->getContentService();
+        $contentCervice = $this->eZAPIRepository->getContentService();
         return $contentCervice->loadContent($contentId);
     }
 

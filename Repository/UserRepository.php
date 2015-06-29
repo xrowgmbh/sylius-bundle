@@ -46,24 +46,21 @@ class UserRepository
             // Get client data of the oauth client
             $client_id = $this->container->getParameter('oauth_client_id');
             $client_secret = $this->container->getParameter('oauth_client_secret');
-            $this->client->setBaseUrl('http://www.wuv-abo.de.example.com');
+            $base_url = $this->container->getParameter('oauth_baseurl');
+            $this->client->setBaseUrl($base_url);
             $cookieJar = $this->cookiePlugin->getCookieJar();
             // All requests
             $requestUrls = array(
                     'accessToken' => '/oauth/v2/token?client_id='.$client_id.'&client_secret='.$client_secret.'&grant_type=password&username='.$username.'&password='.$password,
-                    'authentication' => '/xrowapi/v1/auth?access_token=%s&grant_type=client_credentials',
+                    'authentication' => '/xrowapi/v1/auth?access_token=%s',
                     'user' => '/xrowapi/v1/user',
                     'account' => '/xrowapi/v1/account',
                     'subscriptions' => '/xrowapi/v1/subscriptions',
             );
             $oauthToken = $this->container->get('security.context')->getToken();
-            #$accessTokenString = $this->container->get('session')->get('athash');
-            #$accessToken = $this->container->get('fos_oauth_server.server')->verifyAccessToken($accessTokenString);
-            #die(var_dump($eventDispatcher));
             if ($oauthToken instanceof AnonymousToken) {
                 $accessTokenResponse = $this->client->get($requestUrls['accessToken'])->send();
                 $cookieJar->addCookiesFromResponse($accessTokenResponse);
-                #$eventDispatcher->dispatch(SyliusCartEvents::ITEM_ADD_INITIALIZE, $event);
                 $accessTokenJson = $accessTokenResponse->json();
                 if (isset($accessTokenJson['access_token'])) {
                     // Set authentication
