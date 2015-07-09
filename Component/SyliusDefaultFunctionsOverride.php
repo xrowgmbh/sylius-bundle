@@ -242,7 +242,7 @@ class SyliusDefaultFunctionsOverride
         $variant = $product->getMasterVariant();
         $variant->setProduct($product);
 
-        $price = (int)$contentObject->getFieldValue('price_de')->__toString() * 100;
+        $price = (int)$contentObject->getFieldValue('price')->__toString() * 100;
         // Sylius Produkt Variant
         $variant->setSku($product->getContentId());
         $variant->setAvailableOn($contentObject->versionInfo->creationDate);
