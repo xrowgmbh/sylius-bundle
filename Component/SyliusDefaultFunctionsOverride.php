@@ -111,8 +111,8 @@ class SyliusDefaultFunctionsOverride
     {
         // set temporary user
         if ($order->getUser() === null) {
-            //$user = $this->createUser($userData['first_name'], $userData['last_name'], $userData['email'], $billindAddress);
-            $user = $this->createUser($userData['first_name'], $userData['last_name'], $userData['email']);
+            //$user = $this->createUser($userData['billing_first_name'], $userData['billing_last_name'], $userData['billing_email'], $billindAddress);
+            $user = $this->createUser($userData['billing_first_name'], $userData['billing_last_name'], $userData['billing_email']);
             $order->setUser($user);
         }
 
@@ -268,6 +268,12 @@ class SyliusDefaultFunctionsOverride
         // check if user exists
         $userRepository = $this->container->get('sylius.repository.user');
         $user = $userRepository->findOneBy(array('email' => $email, 'lastName' => $lastName, 'firstName' => $firstName));
+        if ($user === null) {
+            $user = $userRepository->findOneBy(array('email' => $email, 'lastName' => $lastName));
+            if ($user === null) {
+                $user = $userRepository->findOneBy(array('email' => $email));
+            }
+        }
         if ($user === null) {
             $user = $this->container->get('sylius.repository.user')->createNew();
             $user->setFirstname($firstName);
