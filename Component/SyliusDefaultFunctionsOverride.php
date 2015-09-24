@@ -13,6 +13,7 @@ namespace xrow\syliusBundle\Component;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\EventDispatcher\GenericEvent;
 
+use Sylius\Component\Cart\Event\CartEvent;
 use Sylius\Component\Cart\Event\CartItemEvent;
 use Sylius\Component\Cart\Resolver\ItemResolvingException;
 use Sylius\Component\Cart\SyliusCartEvents;
@@ -48,6 +49,17 @@ class SyliusDefaultFunctionsOverride
         $this->sylius['OrderRepository'] = $this->container->get('sylius.repository.order');
         $this->sylius['ProductRepository'] = $this->container->get('sylius.repository.product');
         $this->sylius['PriceCalculator'] = $this->container->get('sylius.price_calculator');
+    }
+
+    /**
+     * Get Sylius cart
+     *
+     * @return \Sylius\Component\Core\Model\Order
+     */
+    public function getCurrentCart()
+    {
+        $cart = $this->sylius['CartProvider']->getCart();
+        return $cart;
     }
 
     /**
@@ -112,7 +124,7 @@ class SyliusDefaultFunctionsOverride
         // set temporary user
         if ($order->getUser() === null) {
             //$user = $this->createUser($userData['billing_first_name'], $userData['billing_last_name'], $userData['billing_email'], $billindAddress);
-            $user = $this->createUser($userData['billing_first_name'], $userData['billing_last_name'], $userData['billing_email']);
+            $user = $this->createUser($userData['mailing_first_name'], $userData['mailing_last_name'], $userData['mailing_email']);
             $order->setUser($user);
         }
 
@@ -131,19 +143,40 @@ class SyliusDefaultFunctionsOverride
         return $order;
     }
 
+    /**
+     * Remove current order and assigned user (maybe after success order process)
+     * 
+     * @param OrderInterface $order
+     * @return boolean true|false
+     */
     public function removeOrder(OrderInterface $order)
     {
         if ($order !== null) {
-            try {
-                $user = $order->getUser();
-                // Remove user and order
-                $this->entityManager->remove($order);
-                $this->entityManager->remove($user);
-                $this->entityManager->flush();
-            } catch (Exception $e) {
-                die(var_dump($e->getMessage()));
-            }
+            $user = $order->getUser();
+            $this->entityManager->remove($order);
+            $this->entityManager->remove($user);
+            $this->entityManager->flush();
+            return true;
         }
+        return false;
+    }
+
+    /**
+     * Abandon current cart
+     * 
+     * @param OrderInterface $order
+     * @return boolean true|false
+     */
+    public function abandonCart(OrderInterface $order)
+    {
+        if ($order !== null) {
+            $cartEvent = new CartEvent($order);
+            $this->entityManager->remove($cartEvent->getCart());
+            $this->entityManager->flush();
+            $this->sylius['CartProvider']->abandonCart();
+            return true;
+        }
+        return false;
     }
 
     /**
