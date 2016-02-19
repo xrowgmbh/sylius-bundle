@@ -12,6 +12,23 @@
         <service id="xrow.sylius.repository.user" class="xrow\syliusBundle\Repository\UserRepository">
             <argument type="service" id="service_container" /> 
         </service>
+
+        <service id="xrow.sylius.entity.user_provider" class="xrow\syliusBundle\Entity\SyliusUserProvider">
+            <argument type="service" id="service_container" /> 
+        </service>
+
+        <!--service id="xrow.sylius.security.user_provider" class="xrow\syliusBundle\Security\SyliusUserProvider">
+            <argument type="service" id="security.user_checker" /> 
+        </service-->
+
+        <service id="xrowsylius.security.authentication.provider" class="xrow\syliusBundle\Security\SyliusUserProvider" public="false">
+            <argument type="service" id="xrow.sylius.entity.user_provider" /> <!-- User Provider -->
+        </service>
+
+        <service id="xrowsylius.security.authentication.listener" class="xrow\syliusBundle\Security\SyliusUserFirewallListener" public="false">
+            <argument type="service" id="security.token_storage"/>
+            <argument type="service" id="security.authentication.manager" />
+        </service>
     </services>
 
 </container>
