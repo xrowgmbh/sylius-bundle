@@ -4,7 +4,7 @@ namespace xrow\syliusBundle;
 
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
-use xrow\syliusBundle\Security\SyliusUserFactory;
+use xrow\syliusBundle\Security\SyliusAuthenticationFactory;
 
 class xrowSyliusBundle extends Bundle
 {
@@ -13,6 +13,6 @@ class xrowSyliusBundle extends Bundle
         parent::build($container);
 
         $extension = $container->getExtension('security');
-        $extension->addSecurityListenerFactory(new SyliusUserFactory());
+        $extension->addSecurityListenerFactory(new SyliusAuthenticationFactory());
     }
 }
